@@ -1,195 +1,257 @@
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
-import React, { useEffect, useState } from 'react'
-import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
+import React, { useEffect, useState } from 'react';
+import {
+  Image,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import Voice from '@react-native-community/voice';
+import axios from 'axios';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Features from '../components/Features';
-import { dummyMessages } from '../constants';
-import Voice from '@react-native-community/voice';
+
+// Replace with your API keys
+const geminiApiKey = ''; // Gemini API key
+const pexelsApiKey = ''; // Pexels API key
+
+const geminiClient = axios.create({
+  headers: {
+    'x-goog-api-key': geminiApiKey,
+    'Content-Type': 'application/json',
+  },
+});
+
+const pexelsClient = axios.create({
+  headers: {
+    'Authorization': pexelsApiKey,
+  },
+});
+
+const geminiEndpoint = 'https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent';
+const pexelsEndpoint = 'https://api.pexels.com/v1/search';
+
 const HomeScreen = () => {
-  const [messages, setMessages] = useState(dummyMessages);
-  const [recording,setRecordings] = useState(false);
-  const [speaking,setSpeaking] = useState(true);
+  const [messages, setMessages] = useState([]);
+  const [recording, setRecording] = useState(false);
+  const [speaking, setSpeaking] = useState(true);
 
-  const speechStartHandler = () => {
-    console.log('start speech');
-  };
-
+  const speechStartHandler = () => console.log('Speech started');
   const speechEndHandler = () => {
-    setRecordings(false);
-    console.log('end speech');
+    setRecording(false);
+    console.log('Speech ended');
   };
-  const speechResultsHandler = (results) => {
-    console.log("voiv",results);
-    
+  const speechResultsHandler = async (results) => {
+    const text = results.value[0];
+    console.log('Voice result:', text);
+    await handleUserMessage(text);  // Call function to handle the message
   };
-  const speechErrorHandler = (error) => {
-    console.log("error",error);
-  };
+  const speechErrorHandler = (error) => console.log('Speech error:', error);
 
   const startRecording = async () => {
-    setRecordings(true);
-    try{
+    setRecording(true);
+    try {
       await Voice.start('en-GB');
-
-    }catch(error){
-      console.log(error);
-
+    } catch (error) {
+      console.log('Error starting recording:', error);
     }
-  }
+  };
+
   const stopRecording = async () => {
-  
-    try{
+    try {
       await Voice.stop();
-      setRecordings(false);
-      //fetch from chatgpt
-
-    }catch(error){
-      console.log(error);
-
+      setRecording(false);
+    } catch (error) {
+      console.log('Error stopping recording:', error);
     }
-  }
+  };
 
-  const clear = () => { setMessages([])};
-  const stopSpeack = ( )=>{
-    setSpeaking(false);
-  }
+  // Handle user messages
+  const handleUserMessage = async (text) => {
+    setMessages((prevMessages) => [
+      ...prevMessages,
+      { role: 'user', content: text },
+    ]);
+
+    console.log('Handling user message:', text);
+
+    try {
+      const response = await geminiClient.post(geminiEndpoint, {
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: `Does this message want to generate a picture, image, art, or anything asking for an image? ${text}. Simply answer with yes or no` }],
+          },
+        ],
+      });
+
+      const content = response.data.candidates[0].content.parts[0].text;
+      console.log('Gemini response content:', content);
+
+      if (content.toLowerCase().includes('yes')) {
+        const imageUrl = await callPexelsApi(text);
+        console.log('Image URL from Pexels:', imageUrl);
+        if (imageUrl) {
+          setMessages((prevMessages) => [
+            ...prevMessages,
+            { role: 'assistant', content: imageUrl },
+          ]);
+        } else {
+          setMessages((prevMessages) => [
+            ...prevMessages,
+            { role: 'assistant', content: 'I can get the image for you after 5 minutes. Please try again later.' },
+          ]);
+        }
+      } else {
+        const responseText = await handleNoImageResponse(text);
+        console.log('Response text:', responseText);
+        setMessages((prevMessages) => [
+          ...prevMessages,
+          { role: 'assistant', content: responseText },
+        ]);
+      }
+    } catch (error) {
+      console.log('Error handling message:', error);
+    }
+  };
+
+  const callPexelsApi = async (query) => {
+    try {
+
+      const response = await pexelsClient.get(pexelsEndpoint, {
+        params: {
+          query: query,
+          per_page: 1,
+        },
+      });
+      console.log("Pexels API Response:", response.data);
+      const imageUrl = response.data.photos[0]?.src?.original;
+      if (imageUrl) {
+        console.log("Image URL:", imageUrl);
+        return imageUrl;
+      } else {
+        console.log('No images found for query:', query);
+        return null;
+      }
+    } catch (error) {
+      if (error.response && error.response.status === 401) {
+        console.log('Error calling Pexels API: Unauthorized (401)');
+      } else {
+        console.log('Error calling Pexels API:', error);
+      }
+      return null; // Ensure that null is returned if there's an error
+    }
+  };
+
+  const handleNoImageResponse = async (prompt) => {
+    try {
+      const response = await geminiClient.post(geminiEndpoint, {
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: prompt }],
+          },
+        ],
+      });
+      return response.data.candidates[0].content.parts[0].text;
+    } catch (error) {
+      console.log('Error handling non-image response:', error);
+      return 'Sorry, I could not process your request.';
+    }
+  };
+
+  const clearMessages = () => setMessages([]);
+
+  const stopSpeaking = () => setSpeaking(false);
 
   useEffect(() => {
-    //voice handler
     Voice.onSpeechStart = speechStartHandler;
     Voice.onSpeechEnd = speechEndHandler;
     Voice.onSpeechResults = speechResultsHandler;
     Voice.onSpeechError = speechErrorHandler;
 
-    return ()=>{
-      //destroy 
+    return () => {
       Voice.destroy().then(Voice.removeAllListeners);
-    }
-  },[])
+    };
+  }, []);
+
   return (
-    <View className="flex-1 bg-white ">
-      <SafeAreaView className="flex-1 flex mx-5">
-        <View className="flex-row justify-center">
-          {/* <Image source={require('../../assets/images/AIlOGO.jpg')}  style={{height:hp(40),width:wp(70)}}/> */}
-          <Text style={{ fontSize: wp(10) }} className="text-center font-bold text-gray-700">
+    <View className="flex-1 bg-white">
+      <SafeAreaView className="flex-1 mx-5">
+        <View className="flex-row justify-center mb-4">
+          <Text className="text-center text-gray-700 font-bold text-4xl">
             Jarvis
           </Text>
         </View>
-
-        {
-          messages.length > 0 ? (
-            <View className="space-y-2 flex-1">
-              <Text className="text-gray-700 font-semibold ml-1" style={{ fontSize: wp(5) }}>
-                Assistant
-              </Text>
-              <View style={{ height: hp(58) }} className="bg-neutral-200 rounded-3xl p-4" >
-                <ScrollView bounces={false} className="space-y-2" showsVerticalScrollIndicator={false}>
-                  {
-                    messages.map((message, index) => {
-                      if (message.role == "assistant") {
-                        if (message.content.includes('https')) {
-                          //ai image
-                          return (<View key={index} className="flex-row justify-start">
-                            <View className="p-2 flex rounded-2xl bg-emerald-100 rounded-tl-none">
-
-                              <Image
-                                source={{ uri: message.content }}
-                                className="rounded-2xl"
-                                resizeMode='contain'
-                                style={{ width: wp(60), height: wp(60) }} />
-                            </View>
-                          </View>)
-
-                        } else {
-                          //text 
-                          return (
-
-                            <View key={index}
-                              style={{ width: wp(70) }}
-                              className="bg-emerald-100 rounded-xl rounded-tl-none p-2">
-                              <Text>{message.content}</Text>
-                            </View>
-
-                          )
-                        }
-                      } else {
-                        //user input
-                        return (
-                          <View key={index} className="flex-row justify-end">
-                            <View style={{ width: wp(70) }}
-                              className="bg-white rounded-xl rounded-tr-none p-2">
-                              <Text>{message.content}</Text>
-                            </View>
-                          </View>
-                        )
-                      }
-
-                      // return (
-                      //   <View>
-                      //     <Text>{message.content}</Text>
-                      //   </View>
-                      // )
-                    })
-                  }
-                </ScrollView>
-
-              </View>
-
+        {messages.length > 0 ? (
+          <View className="flex-1 mb-4">
+            <Text className="text-gray-700 font-semibold text-2xl mb-2">
+              Assistant
+            </Text>
+            <View className="flex-1 bg-neutral-200 rounded-3xl p-4">
+              <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
+                {messages.map((message, index) => (
+                  <View
+                    key={index}
+                    className={`flex-row ${message.role === 'assistant' ? 'justify-start' : 'justify-end'} mb-2`}
+                  >
+                    <View
+                      className={`p-2 rounded-2xl ${message.role === 'assistant' ? 'bg-emerald-100' : 'bg-white'} ${message.content.includes('https') ? 'bg-emerald-100' : ''}`}
+                    >
+                      {message.content.includes('https') ? (
+                        <Image
+                          source={{ uri: message.content }}
+                          className="w-60 h-60 rounded-2xl"
+                          resizeMode="contain"
+                        />
+                      ) : (
+                        <Text>{message.content}</Text>
+                      )}
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
             </View>
+          </View>
+        ) : (
+          <Features />
+        )}
+        <View className="flex items-center mb-4">
+          {recording ? (
+            <TouchableOpacity onPress={stopRecording}>
+              <Image
+                source={require('../../assets/images/ani1.gif')}
+                className="w-10 h-10 rounded-full"
+              />
+            </TouchableOpacity>
           ) : (
-            <Features />
-          )
-        }
-
-
-        <View className="flex justify-center items-center mb-2">
-
-          { recording? (
-                <TouchableOpacity onPress={stopRecording}>
-                <Image className="rounded-full"
-                  source={require("../../assets/images/ani1.gif")}
-                  style={{ width: hp(10), height: hp(10) }} />
-              </TouchableOpacity>
-
-          ):(
-
             <TouchableOpacity onPress={startRecording}>
-            <Image className="rounded-full"
-              source={require("../../assets/images/rec.jpg")}
-              style={{ width: hp(10), height: hp(10) }} />
-          </TouchableOpacity>
+              <Image
+                source={require('../../assets/images/rec.jpg')}
+                className="w-10 h-10 rounded-full"
+              />
+            </TouchableOpacity>
           )}
-
-          {
-            messages.length > 0 && (
-              <TouchableOpacity 
-              onPress={clear}
-              className="bg-neutral-400 rounded-3xl p-2 absolute right-10">
-                <Text className="text-white font-semibold" >
-                  Clear
-                </Text>
-              </TouchableOpacity>
-            ) 
-          }
-          {
-           speaking && (
-              <TouchableOpacity 
-              onPress={stopSpeack}
-              className="bg-red-400 rounded-3xl p-2 absolute left-10">
-                <Text className="text-white font-semibold" >
-                  Stop
-                </Text>
-              </TouchableOpacity>
-            ) 
-          }
-        
+          {messages.length > 0 && (
+            <TouchableOpacity
+              onPress={clearMessages}
+              className="bg-neutral-400 rounded-3xl p-2 absolute right-10"
+            >
+              <Text className="text-white font-semibold">Clear</Text>
+            </TouchableOpacity>
+          )}
+          {speaking && (
+            <TouchableOpacity
+              onPress={stopSpeaking}
+              className="bg-red-400 rounded-3xl p-2 absolute left-10"
+            >
+              <Text className="text-white font-semibold">Stop</Text>
+            </TouchableOpacity>
+          )}
         </View>
-
       </SafeAreaView>
     </View>
-  )
-}
+  );
+};
 
-export default HomeScreen
-
-const styles = StyleSheet.create({})
+export default HomeScreen;
