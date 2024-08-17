@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   Image,
   ScrollView,
@@ -12,9 +12,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Features from '../components/Features';
 import Tts from 'react-native-tts';
 import { Platform } from 'react-native';
-// Replace with your API keys
-const geminiApiKey = ''; // Gemini API key
-const pexelsApiKey = ''; // Pexels API key
+
+const geminiApiKey = ''; 
+const pexelsApiKey = '';
 
 const geminiClient = axios.create({
   headers: {
@@ -35,33 +35,41 @@ const pexelsEndpoint = 'https://api.pexels.com/v1/search';
 const HomeScreen = () => {
   const [messages, setMessages] = useState([]);
   const [recording, setRecording] = useState(false);
-  const [speaking, setSpeaking] = useState(true);
+  const [speaking, setSpeaking] = useState(false);
+  const processingRef = useRef(false); // UseRef to track processing state
+  const lastProcessedTimeRef = useRef(Date.now()); // To track time of last processing
+
+  const debounceTime = 2000; // Set debounce time (e.g., 2 seconds)
 
   const speechStartHandler = () => console.log('Speech started');
+
   const speechEndHandler = () => {
     setRecording(false);
     console.log('Speech ended');
   };
+
   const speechResultsHandler = async (results) => {
+    if (processingRef.current) return; // If processing, ignore additional input
+
+    const now = Date.now();
+    if (now - lastProcessedTimeRef.current < debounceTime) return; // If within debounce time, ignore
+
+    processingRef.current = true;
     const text = results.value[0];
     console.log('Voice result:', text);
-    await handleUserMessage(text);  // Call function to handle the message
+    await handleUserMessage(text);
+    lastProcessedTimeRef.current = Date.now(); // Update last processed time
+    processingRef.current = false;
   };
+
   const speechErrorHandler = (error) => console.log('Speech error:', error);
 
-  
   const startRecording = async () => {
-    
-    
     try {
       if(!recording){
         await Voice.start('en-GB');
         setRecording(true);
-
       }
-      
-    
-
     } catch (error) {
       console.log('Error starting recording:', error);
     }
@@ -76,7 +84,6 @@ const HomeScreen = () => {
     }
   };
 
-  // Handle user messages
   const handleUserMessage = async (text) => {
     setMessages((prevMessages) => [
       ...prevMessages,
@@ -130,9 +137,6 @@ const HomeScreen = () => {
     }
   };
 
-
-
-  
   const startTextToSpeech = (message) => {
     if (Tts && typeof Tts.speak === 'function') {
       if (!message.includes('https')) {
@@ -163,7 +167,6 @@ const HomeScreen = () => {
       console.log('TTS is not initialized or is unavailable.');
     }
   };
-  
 
   const callPexelsApi = async (query) => {
     try {
@@ -188,7 +191,7 @@ const HomeScreen = () => {
       } else {
         console.log('Error calling Pexels API:', error);
       }
-      return null; // Ensure that null is returned if there's an error
+      return null;
     }
   };
 
@@ -243,7 +246,7 @@ const HomeScreen = () => {
 
     return () => {
       Voice.destroy().then(Voice.removeAllListeners);
-      Tts.removeAllListeners();  // Ensure all TTS listeners are removed
+      Tts.removeAllListeners();
     };
   }, []);
 

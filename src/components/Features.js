@@ -34,7 +34,7 @@ const Features = () => {
                     <Text style={{ fontSize: wp(4.8) }} className="font-semibold text-gray-700">Smart-AI</Text>
                 </View>
                 <Text style={{ fontSize: wp(3.8) }} className="font-medium text-gray-700">
-                    ChatGPT is an AI language model designed to engage in conversation with users like you.
+                    Smart AI is an AI language model designed to engage in conversation with users like you.
                 </Text>
 
             </View>
