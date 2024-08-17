@@ -8,22 +8,22 @@ const Features = () => {
 
             <View className="bg-emerald-200 p-4 rounded-xl space-y-2">
                 <View className="flex-row items-center space-x-1">
-                    <Image source={require('../../assets/images/chatgpt.png')} style={{ width: hp(4), height: hp(4) }} />
-                    <Text style={{ fontSize: wp(4.8) }} className="font-semibold text-gray-700">chatgpt</Text>
+                    <Image source={require('../../assets/images/gemini.png')} style={{ width: hp(4), height: hp(4) }} />
+                    <Text style={{ fontSize: wp(4.8) }} className="font-semibold text-gray-700">Gemini</Text>
                 </View>
                 <Text style={{ fontSize: wp(3.8) }} className="font-medium text-gray-700">
-                    ChatGPT is an AI language model designed to engage in conversation with users like you.
+                Google Gemini is an AI language model by Google, designed for generating and understanding human-like text across various applications.
                 </Text>
 
             </View>
             
             <View className="bg-purple-200 p-4 rounded-xl space-y-2">
                 <View className="flex-row items-center space-x-1">
-                    <Image source={require('../../assets/images/DALLE.png')} style={{ width: hp(4), height: hp(4) }} />
-                    <Text style={{ fontSize: wp(4.8) }} className="font-semibold text-gray-700">DALL-E</Text>
+                    <Image source={require('../../assets/images/pexel.png')} style={{ width: hp(4), height: hp(4) }} />
+                    <Text style={{ fontSize: wp(4.8) }} className="font-semibold text-gray-700">Pexels</Text>
                 </View>
                 <Text style={{ fontSize: wp(3.8) }} className="font-medium text-gray-700">
-                    ChatGPT is an AI language model designed to engage in conversation with users like you.
+                Pexels is a free stock photo and video website offering high-quality, royalty-free images and videos for personal and commercial use.
                 </Text>
 
             </View>

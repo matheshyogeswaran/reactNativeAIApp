@@ -10,7 +10,8 @@ import Voice from '@react-native-community/voice';
 import axios from 'axios';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Features from '../components/Features';
-
+import Tts from 'react-native-tts';
+import { Platform } from 'react-native';
 // Replace with your API keys
 const geminiApiKey = ''; // Gemini API key
 const pexelsApiKey = ''; // Pexels API key
@@ -24,7 +25,7 @@ const geminiClient = axios.create({
 
 const pexelsClient = axios.create({
   headers: {
-    'Authorization': pexelsApiKey,
+    'Authorization': `Bearer ${pexelsApiKey}`,
   },
 });
 
@@ -80,9 +81,13 @@ const HomeScreen = () => {
         contents: [
           {
             role: 'user',
-            parts: [{ text: `Does this message want to generate a picture, image, art, or anything asking for an image? ${text}. Simply answer with yes or no` }],
-          },
-        ],
+            parts: [
+              {
+                text: `Does this message want to generate a picture, image, art, or anything asking for an image? ${text}. Simply answer with yes or no.`
+              }
+            ]
+          }
+        ]
       });
 
       const content = response.data.candidates[0].content.parts[0].text;
@@ -109,15 +114,50 @@ const HomeScreen = () => {
           ...prevMessages,
           { role: 'assistant', content: responseText },
         ]);
+        startTextToSpeech(responseText);
       }
     } catch (error) {
-      console.log('Error handling message:', error);
+      console.error('Error handling user message:', error);
     }
   };
 
+
+
+  
+  const startTextToSpeech = (message) => {
+    if (Tts && typeof Tts.speak === 'function') {
+      if (!message.includes('https')) {
+        console.log('Speaking:', message);
+  
+        const commonOptions = {
+          rate: 0.5,
+        };
+  
+        const platformSpecificOptions = Platform.select({
+          ios: {
+            ...commonOptions,
+            iosVoiceId: 'com.apple.ttsbundle.Moira-compact',
+          },
+          android: {
+            ...commonOptions,
+            androidParams: {
+              KEY_PARAM_PAN: -1,
+              KEY_PARAM_VOLUME: 0.5,
+              KEY_PARAM_STREAM: 'STREAM_MUSIC',
+            },
+          },
+        });
+  
+        Tts.speak(message, platformSpecificOptions);
+      }
+    } else {
+      console.log('TTS is not initialized or is unavailable.');
+    }
+  };
+  
+
   const callPexelsApi = async (query) => {
     try {
-
       const response = await pexelsClient.get(pexelsEndpoint, {
         params: {
           query: query,
@@ -162,16 +202,39 @@ const HomeScreen = () => {
 
   const clearMessages = () => setMessages([]);
 
-  const stopSpeaking = () => setSpeaking(false);
+  const stopSpeaking = () => {
+    if(speaking){
+    setSpeaking(false)
+    Tts.stop();
+    }
+  };
 
   useEffect(() => {
+    const initTts = async () => {
+      try {
+        await Tts.setDefaultLanguage('en-GB');
+        await Tts.setDefaultRate(0.5, true);
+        console.log('TTS initialized successfully');
+      } catch (error) {
+        console.log('TTS initialization error:', error);
+      }
+    };
+
+    initTts();
+
     Voice.onSpeechStart = speechStartHandler;
     Voice.onSpeechEnd = speechEndHandler;
     Voice.onSpeechResults = speechResultsHandler;
     Voice.onSpeechError = speechErrorHandler;
 
+    Tts.addEventListener('tts-start', (event) => console.log("start", event));
+    Tts.addEventListener('tts-progress', (event) => console.log("progress", event));
+    Tts.addEventListener('tts-finish', (event) => console.log("finish", event));
+    Tts.addEventListener('tts-cancel', (event) => console.log("cancel", event));
+
     return () => {
       Voice.destroy().then(Voice.removeAllListeners);
+      Tts.removeAllListeners();  // Ensure all TTS listeners are removed
     };
   }, []);
 
@@ -193,19 +256,19 @@ const HomeScreen = () => {
                 {messages.map((message, index) => (
                   <View
                     key={index}
-                    className={`flex-row ${message.role === 'assistant' ? 'justify-start' : 'justify-end'} mb-2`}
+                    className={`flex-row ${message?.role === 'assistant' ? 'justify-start' : 'justify-end'} mb-2`}
                   >
                     <View
-                      className={`p-2 rounded-2xl ${message.role === 'assistant' ? 'bg-emerald-100' : 'bg-white'} ${message.content.includes('https') ? 'bg-emerald-100' : ''}`}
+                      className={`p-2 rounded-2xl ${message?.role === 'assistant' ? 'bg-emerald-100' : 'bg-white'} ${message?.content.includes('https') ? 'bg-emerald-100' : ''}`}
                     >
-                      {message.content.includes('https') ? (
+                      {message?.content.includes('https') ? (
                         <Image
-                          source={{ uri: message.content }}
+                          source={{ uri: message?.content }}
                           className="w-60 h-60 rounded-2xl"
                           resizeMode="contain"
                         />
                       ) : (
-                        <Text>{message.content}</Text>
+                        <Text>{message?.content}</Text>
                       )}
                     </View>
                   </View>
@@ -216,7 +279,7 @@ const HomeScreen = () => {
         ) : (
           <Features />
         )}
-        <View className="flex items-center mb-4">
+        <View className="flex justify-center items-center mb-2 mt-5">
           {recording ? (
             <TouchableOpacity onPress={stopRecording}>
               <Image
