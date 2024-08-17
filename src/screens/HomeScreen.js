@@ -25,7 +25,7 @@ const geminiClient = axios.create({
 
 const pexelsClient = axios.create({
   headers: {
-    'Authorization': `Bearer ${pexelsApiKey}`,
+    'Authorization': pexelsApiKey,
   },
 });
 
@@ -49,10 +49,19 @@ const HomeScreen = () => {
   };
   const speechErrorHandler = (error) => console.log('Speech error:', error);
 
+  
   const startRecording = async () => {
-    setRecording(true);
+    
+    
     try {
-      await Voice.start('en-GB');
+      if(!recording){
+        await Voice.start('en-GB');
+        setRecording(true);
+
+      }
+      
+    
+
     } catch (error) {
       console.log('Error starting recording:', error);
     }
@@ -147,7 +156,7 @@ const HomeScreen = () => {
             },
           },
         });
-  
+        setSpeaking(true); 
         Tts.speak(message, platformSpecificOptions);
       }
     } else {
