@@ -179,7 +179,7 @@ const HomeScreen = () => {
     <View className="flex-1 bg-white">
       <SafeAreaView className="flex-1 mx-5">
         <View className="flex-row justify-center mb-4">
-          <Text className="text-center text-gray-700 font-bold text-4xl">
+          <Text className="text-center text-gray-700 font-bold text-4xl mt-5">
             Jarvis
           </Text>
         </View>
